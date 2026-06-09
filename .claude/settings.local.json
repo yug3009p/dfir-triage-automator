@@ -13,7 +13,8 @@
       "PowerShell(Copy-Item *)",
       "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -c \"import ast; ast.parse\\(open\\('src/app.py'\\).read\\(\\)\\); print\\('parse OK'\\)\")",
       "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -c \"import streamlit; print\\('streamlit', streamlit.__version__\\)\")",
-      "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m streamlit run src\\\\app.py --server.headless true --server.port 8501)"
+      "PowerShell(.\\\\venv\\\\Scripts\\\\python.exe -m streamlit run src\\\\app.py --server.headless true --server.port 8501)",
+      "PowerShell(git add *)"
     ]
   }
 }
