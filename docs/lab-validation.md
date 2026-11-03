@@ -4,6 +4,9 @@ The Shimcache, Amcache and registry parsers are unit-tested against fake keys an
 binary data. This guide checks them against **real hives** from a lab VM, using Eric Zimmerman's
 tools as the reference. Plan on about 3 hours.
 
+> **Prefer automation?** [`lab/`](../lab/README.md) builds the VM unattended and runs this whole
+> procedure with one command, checking the results against ground truth recorded inside the VM.
+
 Record the results, including any mismatches, in `docs/validation-results.md`. A mismatch is
 useful information: write it down rather than quietly fixing it away.
 

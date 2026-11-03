@@ -10,6 +10,9 @@ Planned as 1.0.0 once the registry parsers are validated on real hives
 (see [docs/lab-validation.md](docs/lab-validation.md)).
 
 ### Added
+- `lab/`: VirtualBox automation that builds a Windows 11 lab VM unattended, generates harmless
+  known activity, collects the artifacts, and checks dfir-triage against ground truth recorded in
+  the VM (real SHA-1s and file times), optionally also against Eric Zimmerman's tools.
 - `dfir-triage` command: parses an evidence folder and writes `timeline.csv`, `findings.csv` and a
   self-contained `report.html`.
 - Parsers for Shimcache (Windows 10/11), Amcache (`InventoryApplicationFile`), Run/RunOnce keys,
