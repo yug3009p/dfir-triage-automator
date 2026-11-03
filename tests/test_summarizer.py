@@ -58,3 +58,10 @@ def test_ollama_unreachable_returns_error(sample_data, monkeypatch):
     monkeypatch.setattr(summarizer.urllib.request, "urlopen", refuse)
     result = summarizer.summarize_timeline(df, provider="ollama")
     assert result.startswith("ERROR: could not reach Ollama")
+
+
+def test_retired_model_errors_are_recognised():
+    assert summarizer._is_decommissioned_error(Exception("model_decommissioned"))
+    retired = "Error code: 404 - The model llama-3.3-70b-versatile does not exist (model_not_found)"
+    assert summarizer._is_decommissioned_error(Exception(retired))
+    assert not summarizer._is_decommissioned_error(Exception("rate limit exceeded"))
