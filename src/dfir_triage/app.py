@@ -194,7 +194,7 @@ generate = col_btn.button("🔍 Generate AI Incident Summary", use_container_wid
 
 if generate:
     try:
-        with st.spinner("Querying Groq (Llama 3.3 70B)…"):
+        with st.spinner("Querying Groq…"):
             summary = summarize_timeline(df)
         st.session_state["summaries"][file_key] = summary
     except Exception as e:

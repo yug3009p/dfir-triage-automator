@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pandas as pd
 
-MODEL = "llama-3.3-70b-versatile"  # Groq model
+# Default Groq model. Groq retires models over time; set GROQ_MODEL in .env to override.
+MODEL = "openai/gpt-oss-120b"
 OLLAMA_DEFAULT_MODEL = "llama3.1:8b"
 OLLAMA_DEFAULT_HOST = "http://localhost:11434"
 MAX_ROWS = 200
@@ -94,7 +95,8 @@ def build_user_prompt(df: pd.DataFrame, findings=None) -> str:
 
 def _is_decommissioned_error(err: Exception) -> bool:
     msg = str(err).lower()
-    return "decommission" in msg or "model_decommissioned" in msg
+    # Groq reports a retired model either as decommissioned or as not found.
+    return any(s in msg for s in ("decommission", "model_not_found", "does not exist"))
 
 
 def _call_groq(user_prompt: str) -> str:
@@ -108,9 +110,10 @@ def _call_groq(user_prompt: str) -> str:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         return "ERROR: GROQ_API_KEY not set. Add it to .env (see .env.example)."
+    model = os.getenv("GROQ_MODEL") or MODEL
     try:
         response = Groq(api_key=api_key).chat.completions.create(
-            model=MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -121,9 +124,9 @@ def _call_groq(user_prompt: str) -> str:
     except Exception as e:
         if _is_decommissioned_error(e):
             return (
-                f"STOP: Groq model '{MODEL}' has been decommissioned. "
+                f"STOP: Groq model '{model}' is no longer available. "
                 f"Pick a current model from https://console.groq.com/docs/models "
-                f"and update MODEL in src/dfir_triage/summarizer.py.\n\nRaw error: {e}"
+                f"and set GROQ_MODEL in .env.\n\nRaw error: {e}"
             )
         return f"ERROR: Groq API call failed: {type(e).__name__}: {e}"
 

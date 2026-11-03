@@ -20,6 +20,11 @@ Planned as 1.0.0 once the registry parsers are validated on real hives
 - Dockerfile (non-root), CI on Ubuntu and Windows, SECURITY.md, CONTRIBUTING.md.
 - Attribution for the GPL-3.0 sample data in `sample_data/NOTICE.md`.
 
+### Fixed
+- `--summarize groq` failed because Groq retired `llama-3.3-70b-versatile`. The default is now
+  `openai/gpt-oss-120b` (verified with a live run on the samples), `GROQ_MODEL` overrides it, and a
+  retired model is now recognised from Groq's `model_not_found` error and explained.
+
 ### Changed
 - Code moved into the `dfir_triage` package with a `pyproject.toml`.
 - The EVTX parser now reads `UserData` fields (needed for event 1102), extracts user and image
