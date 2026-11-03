@@ -32,7 +32,9 @@ if (Test-VmExists $VmName) { throw "A VM named $VmName already exists. Delete it
 if ($ImageIndex -eq 0) {
     $detect = (Invoke-Native -Exe $script:VBox -Arguments @("unattended", "detect", "--iso=$IsoPath")).Output
     $match = [regex]::Matches($detect, '(?m)^\s*Image\s*#?\s*(\d+)\s*[:=]\s*(.*)$') |
-        Where-Object { $_.Groups[2].Value -match 'Windows 11 (Pro|Enterprise)\b' -and $_.Groups[2].Value -notmatch 'N\b|Education|Workstation' } |
+        # Exact edition name followed by the version in brackets, e.g. "Windows 11 Pro (10.0.26300...".
+        # This skips "Pro N", "Pro Education" and "Pro for Workstations".
+        Where-Object { $_.Groups[2].Value -cmatch '^Windows 11 (Pro|Enterprise) \(' } |
         Select-Object -First 1
     if (-not $match) { throw "Could not pick a Windows 11 Pro/Enterprise image automatically. Detection output:`n$detect`nRe-run with -ImageIndex <n>." }
     $ImageIndex = [int]$match.Groups[1].Value
