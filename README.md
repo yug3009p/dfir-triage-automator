@@ -198,5 +198,5 @@ This project is released under the [MIT License](LICENSE).
 
 **Yug Mukesh Patel**
 
-- LinkedIn — <https://www.linkedin.com/in/yug-patel-b9727226b/>
+- LinkedIn — <https://www.linkedin.com/in/yugpatel9409/>
 - GitHub — <https://github.com/yug3009p>
