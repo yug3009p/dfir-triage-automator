@@ -161,9 +161,29 @@ tool indicates active compromise, not reconnaissance.
 
 | Standard | How this project maps |
 |---|---|
-| **MITRE ATT&CK** | The Event ID coverage table is annotated with the techniques each event commonly evidences, and the LLM report includes an explicit "ATT&CK Techniques Observed" section inferred from the timeline. |
+| **MITRE ATT&CK** | Deterministic detection rules (below) map evidence to ATT&CK techniques without an LLM. The optional LLM report adds an "ATT&CK Techniques Observed" section inferred from the timeline. |
 | **Windows Event Schema** | The parser handles the standard Windows event XML namespace and the Security, System, Sysmon, and PowerShell channels. |
 | **DFIR triage workflow** | The five-section report maps to how an IR lead actually consumes a triage handoff: what happened, in what order, mapped to a framework, how bad, and what to do. |
+
+## Detection rules
+
+`src/dfir_triage/rules.py` runs these rules over every timeline event. They are plain Python, so the same evidence always gives the same findings, and each finding points to the event that triggered it. A finding means "look at this", not "this is malicious"; each rule carries a note on common benign causes.
+
+| ID | Rule | ATT&CK | Severity | Evidence |
+|---|---|---|---|---|
+| DT-001 | Event log cleared | T1070.001 | High | Security 1102, System 104 |
+| DT-002 | Pass-the-hash style logon (type 9, seclogo) | T1550.002 | High | Security 4624 |
+| DT-003 | Process accessed LSASS memory | T1003.001 | High | Sysmon 10 |
+| DT-004 | Encoded PowerShell command line | T1059.001 | High | Security 4688, Sysmon 1 |
+| DT-005 | Service launches a shell, script host or user-writable binary | T1543.003 | High | System 7045, Security 4697, SYSTEM hive Services |
+| DT-006 | New service installed | T1543.003 | Medium | System 7045, Security 4697 |
+| DT-007 | Scheduled task created | T1053.005 | Medium | Security 4698 |
+| DT-008 | Local account created | T1136.001 | Medium | Security 4720 |
+| DT-009 | Account added to a security group | T1098 | Medium | Security 4728, 4732, 4756 |
+| DT-010 | Program executed from a user-writable folder | T1204.002 | Medium | 4688, Sysmon 1, Shimcache, Amcache, UserAssist |
+| DT-011 | Registry Run key autostart entry | T1547.001 | Low | SOFTWARE / NTUSER.DAT Run, RunOnce |
+
+On the bundled samples, the lateral-movement capture triggers DT-001 (audit log cleared) followed by DT-002 (pass-the-hash logon). The test suite checks every rule against an event that must match and a similar one that must not.
 
 ## Data source
 
