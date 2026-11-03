@@ -27,9 +27,9 @@ This project is one answer. It parses the log, builds a chronological triage tim
 
 A Streamlit web app backed by two reusable modules:
 
-- **EVTX Parser (`src/parser.py`).** Reads any Windows `.evtx` file, extracts each record's timestamp, Event ID, channel/provider, computer, and event data, and resolves the Event ID to a plain-English description via a curated lookup (Security, System, Sysmon, and PowerShell channels). Returns a time-sorted `pandas` DataFrame. One corrupt record never kills the parse.
-- **LLM Summarizer (`src/summarizer.py`).** Flattens the timeline into a token-bounded prompt, treats it as authoritative evidence (no invented events), and asks Groq's `llama-3.3-70b-versatile` — cast as a senior SOC/DFIR analyst writing for an on-call IR lead — to return a fixed five-section markdown report.
-- **Streamlit UI (`src/app.py`).** Upload an `.evtx`, see a metrics row (total events, time span, high-signal event count) and an interactive timeline table, then generate the AI incident report on demand and export it as Markdown.
+- **EVTX Parser (`src/dfir_triage/parsers/evtx.py`).** Reads any Windows `.evtx` file, extracts each record's timestamp, Event ID, channel/provider, computer, and event data, and resolves the Event ID to a plain-English description via a curated lookup (Security, System, Sysmon, and PowerShell channels). Returns a time-sorted `pandas` DataFrame. One corrupt record never kills the parse.
+- **LLM Summarizer (`src/dfir_triage/summarizer.py`).** Flattens the timeline into a token-bounded prompt, treats it as authoritative evidence (no invented events), and asks Groq's `llama-3.3-70b-versatile` — cast as a senior SOC/DFIR analyst writing for an on-call IR lead — to return a fixed five-section markdown report.
+- **Streamlit UI (`src/dfir_triage/app.py`).** Upload an `.evtx`, see a metrics row (total events, time span, high-signal event count) and an interactive timeline table, then generate the AI incident report on demand and export it as Markdown.
 
 ## Screenshots
 
@@ -101,7 +101,7 @@ copy .env.example .env        # Windows  (use 'cp' on macOS/Linux)
 # then edit .env and paste your key from https://console.groq.com/keys
 
 # 5. Launch
-streamlit run src/app.py
+streamlit run src/dfir_triage/app.py
 ```
 
 The app opens at <http://localhost:8501>. Parsing and the timeline view work without an API key; generating the AI incident report requires `GROQ_API_KEY`.
@@ -109,8 +109,8 @@ The app opens at <http://localhost:8501>. Parsing and the timeline view work wit
 You can also run the pieces directly from the command line:
 
 ```bash
-python src/parser.py sample_data/<file>.evtx       # prints the parsed timeline
-python src/summarizer.py                           # parses a sample + prints the report
+python -m dfir_triage.summarizer                   # parses a sample + prints the report
+pytest                                             # runs the test suite (needs .[dev])
 ```
 
 ## Example output

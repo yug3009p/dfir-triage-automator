@@ -1,5 +1,4 @@
 import os
-import sys
 from pathlib import Path
 
 import pandas as pd
@@ -95,15 +94,15 @@ def summarize_timeline(df: pd.DataFrame) -> str:
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from parser import parse_evtx
+    from dfir_triage.parsers.evtx import parse_evtx
+    from dfir_triage.timeline import to_dataframe
 
     sample = (
-        Path(__file__).resolve().parent.parent
+        Path(__file__).resolve().parents[2]
         / "sample_data"
         / "LateralMovement_LM_4624_mimikatz_sekurlsa_pth_source_machine.evtx"
     )
     print(f"Parsing: {sample}")
-    df = parse_evtx(str(sample))
+    df = to_dataframe(parse_evtx(sample))
     print(f"Parsed {len(df)} records. Calling Groq...\n")
     print(summarize_timeline(df))
