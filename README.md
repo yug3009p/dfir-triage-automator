@@ -1,202 +1,186 @@
 # DFIR Triage Automator
 
-**Parses Windows event logs (`.evtx`) into a normalized attack timeline and uses an LLM to generate an analyst-grade incident report. Maps observed activity to MITRE ATT&CK.**
+**Turns a folder of Windows forensic artifacts (event logs, Shimcache, Amcache, registry) into one timeline, runs ATT&CK-mapped detection rules over it, and writes a self-contained HTML triage report.**
 
-![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-FF4B4B?logo=streamlit&logoColor=white)
-![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036)
-![Windows](https://img.shields.io/badge/Windows-EVTX_Event_Logs-0078D6?logo=windows&logoColor=white)
+[![CI](https://github.com/yug3009p/dfir-triage-automator/actions/workflows/ci.yml/badge.svg)](https://github.com/yug3009p/dfir-triage-automator/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![MITRE ATT&CK](https://img.shields.io/badge/MITRE-ATT%26CK-C00000)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
 
+<img src="screenshots/report.png" alt="HTML triage report generated from the bundled sample logs" width="100%">
+
+*`report.html` from the bundled samples: the audit log is cleared (DT-001) four seconds before a pass-the-hash logon (DT-002).*
+
 ---
 
-## Why this project
+## The problem
 
-When an analyst is handed a Windows event log during an incident, the first hour is mostly mechanical: open the `.evtx`, decode hundreds or thousands of numeric Event IDs, reconstruct who-did-what-when, and figure out whether the activity is benign or the opening moves of an intrusion. That triage step is slow, error-prone, and exactly the kind of work that bottlenecks a SOC at 2 a.m.
+In the first hour of a Windows incident, an analyst is handed a pile of artifacts and needs to answer: **what ran, when, as whom, and what persists?** The answers are spread across formats that each need their own tool: binary event logs, the Shimcache blob in the SYSTEM hive, Amcache, Run keys, services, UserAssist. Each one also records time differently.
 
-A few realities that motivated this tool:
+## Why it matters
 
-- **Raw Event IDs are not human-readable.** A line that says `EventID 1102` means nothing until you know it is *"the security audit log was cleared"* — a classic anti-forensics move (MITRE ATT&CK **T1070.001 — Indicator Removal: Clear Windows Event Logs**). Multiply that across the ~20 IDs that actually matter and triage becomes lookup-table archaeology.
-- **The signal is in the sequence, not the single event.** `1102` (log cleared) → `4624` (logon) → `4672` (admin privileges) → `4688` (process execution) within seconds is a textbook attack story. A list of timestamps hides it; a narrative surfaces it.
-- **Triage capacity is the constraint.** The shortage in defensive security is rarely raw data — it is analyst-hours to interpret it. Anything that turns "here are 6,000 events" into "here is what happened, how severe it is, and what to do next" is leverage.
+- **The signal is in the sequence.** `1102` (log cleared) followed seconds later by a type-9 logon is an attack story. Neither event alone is.
+- **Timestamps lie if you misread them.** A Shimcache time is the file's last-modified time, not when it ran. A registry time belongs to the key, not the value. Every row in this tool's timeline carries a `time_meaning` column so these never get mixed up.
+- **Triage should be repeatable.** The detection rules are plain code, not an LLM: the same evidence always gives the same findings, and each finding points to the exact event behind it.
 
-This project is one answer. It parses the log, builds a chronological triage timeline with plain-English descriptions, and asks an LLM acting as a senior DFIR analyst to produce a structured incident report — executive summary, attack narrative, ATT&CK techniques, severity, and recommended response actions.
+Full-scale tools such as [Plaso](https://github.com/log2timeline/plaso) and Eric Zimmerman's tools do far more. This project is a small, readable, cross-platform alternative for first-pass triage, written to be understood line by line.
 
-## What it does
-
-A Streamlit web app backed by two reusable modules:
-
-- **EVTX Parser (`src/parser.py`).** Reads any Windows `.evtx` file, extracts each record's timestamp, Event ID, channel/provider, computer, and event data, and resolves the Event ID to a plain-English description via a curated lookup (Security, System, Sysmon, and PowerShell channels). Returns a time-sorted `pandas` DataFrame. One corrupt record never kills the parse.
-- **LLM Summarizer (`src/summarizer.py`).** Flattens the timeline into a token-bounded prompt, treats it as authoritative evidence (no invented events), and asks Groq's `llama-3.3-70b-versatile` — cast as a senior SOC/DFIR analyst writing for an on-call IR lead — to return a fixed five-section markdown report.
-- **Streamlit UI (`src/app.py`).** Upload an `.evtx`, see a metrics row (total events, time span, high-signal event count) and an interactive timeline table, then generate the AI incident report on demand and export it as Markdown.
-
-## Screenshots
-
-> Drop screenshots into `screenshots/` and reference them here. Suggested set: `01_upload.png`, `02_timeline.png`, `03_summary.png`.
-
-```
-screenshots/
-├── 01_upload.png      # File upload + empty-state instruction
-├── 02_timeline.png    # Metrics row + parsed timeline table
-└── 03_summary.png     # Generated AI incident report
-```
-
-## Event ID coverage
-
-The parser resolves these security-relevant Event IDs to plain-English meaning. Anything outside the table is preserved and labelled `Other`.
-
-| Event ID | Meaning | Source | Why it matters (ATT&CK) |
-|---|---|---|---|
-| 4624 | Successful logon | Security | Valid Accounts (T1078) |
-| 4625 | Failed logon | Security | Brute Force (T1110) |
-| 4634 | Logoff | Security | Session context |
-| 4648 | Logon with explicit credentials | Security | Lateral movement / pass-the-hash signal |
-| 4672 | Special privileges assigned | Security | Privileged / admin logon |
-| 4688 | Process creation | Security | Execution (T1059) |
-| 4720 | User account created | Security | Account Manipulation (T1136) |
-| 4724 | Password reset attempt | Security | Account Manipulation |
-| 4728 / 4732 / 4756 | Member added to security group | Security | Privilege escalation / persistence |
-| 4740 | Account locked out | Security | Brute Force fallout |
-| 1102 | Audit log cleared | Security | Indicator Removal (T1070.001) |
-| 4698 | Scheduled task created | Security | Scheduled Task (T1053.005) |
-| 4697 / 7045 | Service installed | Security / System | Create or Modify System Process (T1543.003) |
-| 7036 | Service state change | System | Service activity |
-| 4104 | PowerShell script block logged | PowerShell | Command & Scripting Interpreter (T1059.001) |
-| Sysmon 1 | Process creation | Sysmon | Execution |
-| Sysmon 3 | Network connection | Sysmon | C2 / exfiltration signal |
-| Sysmon 11 | File created | Sysmon | Tooling drop |
-| Sysmon 13 | Registry value set | Sysmon | Persistence / config change |
-
-Sysmon and Security IDs that collide (e.g. `1`) are disambiguated by channel before lookup.
-
-## Tech stack
-
-- **Python** 3.12
-- **python-evtx** for parsing the binary `.evtx` format
-- **pandas** for the timeline DataFrame
-- **Streamlit** for the UI
-- **Groq SDK** — `llama-3.3-70b-versatile` for report generation
-- **python-dotenv** for local secret loading
-
-## Setup
+## Quickstart
 
 ```bash
-# 1. Clone and enter the project
 git clone https://github.com/yug3009p/dfir-triage-automator.git
 cd dfir-triage-automator
-
-# 2. Create a virtualenv
-python -m venv venv
-# Windows (PowerShell)
-.\venv\Scripts\Activate.ps1
-# macOS / Linux
-source venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure your Groq API key
-copy .env.example .env        # Windows  (use 'cp' on macOS/Linux)
-# then edit .env and paste your key from https://console.groq.com/keys
-
-# 5. Launch
-streamlit run src/app.py
+pip install .                          # use a virtualenv if you prefer
+dfir-triage sample_data -o output      # writes report.html, timeline.csv, findings.csv
+# open output/report.html in a browser
 ```
 
-The app opens at <http://localhost:8501>. Parsing and the timeline view work without an API key; generating the AI incident report requires `GROQ_API_KEY`.
-
-You can also run the pieces directly from the command line:
+Or with Docker:
 
 ```bash
-python src/parser.py sample_data/<file>.evtx       # prints the parsed timeline
-python src/summarizer.py                           # parses a sample + prints the report
+docker build -t dfir-triage .
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/data" dfir-triage sample_data -o output
 ```
 
-## Example output
-
-Parsing a lateral-movement sample produces a timeline like:
+Real output on the bundled samples:
 
 ```
-Time        EventID  Description                          Details
-11:06:25    1102     Audit log cleared                    Channel=Security
-11:06:29    4624     Successful logon                     LogonType=3 | Account=svc_admin
-11:06:29    4672     Special privileges assigned (admin)  Privileges=SeDebugPrivilege ...
-11:06:31    4688     Process creation                     Image=...\mimikatz.exe
+Parsed 3/3 artifacts, 12 events
+HIGH   2 finding(s)
+       DT-001 Event log cleared @ 2019-03-18T11:06:25.485214Z
+       DT-002 Pass-the-hash style logon (type 9, seclogo) @ 2019-03-18T11:06:29.911579Z
+Wrote output/report.html, timeline.csv, findings.csv
 ```
 
-Generating the report returns a five-section markdown document:
+### Usage
 
-```markdown
-## 1. Executive Summary
-An actor cleared the Windows security audit log, then authenticated with an
-administrative account and executed a credential-dumping tool within seconds —
-consistent with a hands-on-keyboard intrusion attempting to harvest credentials
-while suppressing forensic evidence.
-
-## 2. Attack Timeline Narrative
-1. 11:06:25 — Security audit log cleared (anti-forensics).
-2. 11:06:29 — Successful network logon followed immediately by assignment of
-   administrative privileges.
-3. 11:06:31 — Execution of a known credential-access tool.
-
-## 3. MITRE ATT&CK Techniques Observed
-- T1070.001 — Indicator Removal: Clear Windows Event Logs
-- T1078 — Valid Accounts
-- T1003 — OS Credential Dumping
-
-## 4. Severity Assessment
-**Critical** — log clearing combined with privileged execution of a credential
-tool indicates active compromise, not reconnaissance.
-
-## 5. Recommended Response Actions
-- Isolate the host and capture volatile memory before reboot.
-- Reset and audit the implicated administrative account.
-- Hunt for the cleared-log technique across other endpoints.
+```bash
+dfir-triage ./evidence -o output                     # any folder layout, e.g. a KAPE output tree
+dfir-triage ./evidence -o output --summarize ollama  # optional summary from a local model
+dfir-triage ./evidence -o output --summarize groq    # ...or from Groq (needs GROQ_API_KEY, pip install ".[llm]")
 ```
 
-*(Illustrative output; exact wording varies per run and per log.)*
+Artifacts are recognised by file name: `*.evtx`, `SYSTEM`, `SOFTWARE`, `NTUSER.DAT` (the parent folder name is used as the user) and `Amcache.hve`. A file that fails to parse is listed in the report's coverage table instead of stopping the run.
 
-## Standards alignment
+A Streamlit UI for uploading a single `.evtx` is also included: `pip install ".[ui,llm]"`, then `streamlit run src/dfir_triage/app.py`.
 
-| Standard | How this project maps |
+## Architecture
+
+```mermaid
+flowchart LR
+    E[Evidence folder] --> C{classify by file name}
+    C -->|*.evtx| P1[EVTX parser]
+    C -->|SYSTEM| P2[Shimcache + Services]
+    C -->|SOFTWARE / NTUSER.DAT| P3[Run keys + UserAssist]
+    C -->|Amcache.hve| P4[Amcache parser]
+    P1 & P2 & P3 & P4 --> T[TimelineEvent list<br/>sorted, UTC, time_meaning]
+    T --> R[Detection rules<br/>DT-001..DT-011]
+    T --> CSV1[timeline.csv]
+    R --> CSV2[findings.csv]
+    T & R --> H[report.html]
+    T & R -.optional.-> L[LLM summary<br/>Groq or local Ollama] -.-> H
+```
+
+| Module | Role |
 |---|---|
-| **MITRE ATT&CK** | The Event ID coverage table is annotated with the techniques each event commonly evidences, and the LLM report includes an explicit "ATT&CK Techniques Observed" section inferred from the timeline. |
-| **Windows Event Schema** | The parser handles the standard Windows event XML namespace and the Security, System, Sysmon, and PowerShell channels. |
-| **DFIR triage workflow** | The five-section report maps to how an IR lead actually consumes a triage handoff: what happened, in what order, mapped to a framework, how bad, and what to do. |
+| `schema.py` | `TimelineEvent`: the one row shape every parser produces |
+| `parsers/evtx.py` | Event logs via python-evtx, including `UserData` fields |
+| `parsers/shimcache.py` | Windows 10/11 AppCompatCache binary format |
+| `parsers/amcache.py` | `InventoryApplicationFile` entries, including SHA-1 |
+| `parsers/registry.py` | Run/RunOnce, Services, UserAssist (ROT13-decoded) |
+| `hive.py` | The few python-registry calls the parsers use, so tests can use fake keys |
+| `timeline.py` | Finds artifacts, runs parsers, records per-file errors, writes CSV |
+| `rules.py` | Deterministic ATT&CK rules |
+| `report.py` + `templates/` | HTML report, autoescaped |
+| `summarizer.py` | Optional LLM write-up |
+| `cli.py` | `dfir-triage` command |
 
-## Data source
+## What each timestamp means
 
-Sample logs in `sample_data/` are real, ATT&CK-mapped attack captures drawn from the public **[EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES)** repository by Samir Bousseaden — a widely-used dataset for testing EVTX parsing and DFIR / threat-hunting tooling. Using real attack data (rather than synthetic logs) means the timeline and the generated reports reflect genuine adversary behavior.
+| `time_meaning` | Source | Meaning |
+|---|---|---|
+| `EventRecorded` | EVTX | When Windows wrote the event |
+| `FileLastModified` | Shimcache | The file's last-modified time. Not an execution time, and an entry alone does not prove execution on Windows 10/11 |
+| `KeyLastWrite` | Amcache, Run keys, Services | Last write to the registry key, which may cover several values |
+| `LastExecuted` | UserAssist | Last launch through Explorer |
 
-## Inspired by
+## Detection rules
 
-This is **original work** — the parser, the Event ID lookup, the summarizer prompt design, and the UI are written from scratch — but it builds on:
+`src/dfir_triage/rules.py` runs these rules over every timeline event. A finding means "look at this", not "this is malicious"; each rule carries a note on common benign causes.
 
-- **[EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES)** — for realistic, technique-tagged Windows event data.
-- **[python-evtx](https://github.com/williballenthin/python-evtx)** (Willi Ballenthin) — for the EVTX parsing primitives.
-- **MITRE ATT&CK** — for the technique vocabulary the reports map onto.
+| ID | Rule | ATT&CK | Severity | Evidence |
+|---|---|---|---|---|
+| DT-001 | Event log cleared | T1070.001 | High | Security 1102, System 104 |
+| DT-002 | Pass-the-hash style logon (type 9, seclogo) | T1550.002 | High | Security 4624 |
+| DT-003 | Process accessed LSASS memory | T1003.001 | High | Sysmon 10 |
+| DT-004 | Encoded PowerShell command line | T1059.001 | High | Security 4688, Sysmon 1 |
+| DT-005 | Service launches a shell, script host or user-writable binary | T1543.003 | High | System 7045, Security 4697, SYSTEM hive Services |
+| DT-006 | New service installed | T1543.003 | Medium | System 7045, Security 4697 |
+| DT-007 | Scheduled task created | T1053.005 | Medium | Security 4698 |
+| DT-008 | Local account created | T1136.001 | Medium | Security 4720 |
+| DT-009 | Account added to a security group | T1098 | Medium | Security 4728, 4732, 4756 |
+| DT-010 | Program executed from a user-writable folder | T1204.002 | Medium | 4688, Sysmon 1, Shimcache, Amcache, UserAssist |
+| DT-011 | Registry Run key autostart entry | T1547.001 | Low | SOFTWARE / NTUSER.DAT Run, RunOnce |
 
-## Metrics
+Each rule is tested against an event that must match and a similar one that must not. A test also fails if a rule is missing from this table.
 
-- **~20 security-relevant Event IDs** resolved to plain-English meaning across Security, System, Sysmon, and PowerShell channels.
-- **End-to-end triage in one upload** — raw `.evtx` to a five-section, ATT&CK-mapped incident report.
-- **Resilient parsing** — token-bounded LLM input and per-record error handling, so large or partially-corrupt logs still produce a timeline.
-- **Validated on real attack samples** — tested against lateral-movement, execution, and credential-access captures from EVTX-ATTACK-SAMPLES.
+## Event ID descriptions
 
-## Safety notes
+The EVTX parser labels these IDs in plain English; everything else is kept and labelled `Other`. Sysmon IDs are looked up separately because they collide with other channels (Sysmon `1` is not Security `1`).
 
-- `sample_data/` contains public attack-sample logs only — no real organizational data or PII.
-- `.env` is git-ignored, so your Groq API key never enters version control.
-- Analyze only logs you are authorized to handle. The tool describes adversary techniques to defend against them; use responsibly.
+| Channel | Event IDs |
+|---|---|
+| Security | 1102 log cleared · 4624 / 4625 logon success / failure · 4634 logoff · 4648 explicit-credential logon · 4672 special privileges · 4688 process creation · 4697 service installed · 4698 scheduled task · 4720 account created · 4724 password reset · 4728 / 4732 / 4756 group membership · 4740 lockout |
+| System | 104 log cleared · 7036 service state change · 7045 service installed |
+| PowerShell | 4104 script block |
+| Sysmon | 1 process creation · 3 network connection · 7 image loaded · 8 CreateRemoteThread · 10 process access · 11 file create · 13 registry value set · 22 DNS query |
+
+## Optional LLM summary
+
+`--summarize` sends the rule findings and the first 200 timeline rows to a model and embeds its five-section write-up in the report, marked as advisory. `ollama` keeps the evidence on your machine; `groq` sends it to a hosted API, so use it only with evidence you are allowed to share. The evidence is untrusted (a log field can contain text written to manipulate a model), so the prompt tells the model never to follow instructions found in it, and the report escapes all model output.
+
+## Validation status
+
+| Component | How it is tested | Status |
+|---|---|---|
+| EVTX parser | 3 public attack captures from EVTX-ATTACK-SAMPLES + unit tests | Done |
+| Detection rules | Positive and negative case per rule; exact findings on the samples | Done |
+| HTML report | Rendering, truncation, failure display, and an XSS-escaping test | Done |
+| Shimcache, Amcache, registry parsers | Unit tests on fake registry keys and hand-built binary blobs | **Not yet validated on real hives.** Planned comparison against Eric Zimmerman's AmcacheParser, AppCompatCacheParser and RECmd: see [docs/lab-validation.md](docs/lab-validation.md) |
+
+CI runs lint and the test suite on Ubuntu and Windows (Python 3.11 and 3.12) and builds the Docker image.
+
+## Limitations
+
+- Shimcache: Windows 10/11 format only. Amcache: Windows 10 1709+ `Inventory` format only.
+- Registry transaction logs are not replayed, so very recent changes in a "dirty" hive can be missing.
+- Not yet parsed: Prefetch, $MFT, SRUM, LNK / Jump Lists, browser history.
+- Rules look at one event at a time; there is no correlation yet (for example "20 failed logons in a minute").
+- The bundled samples are small (12 events). They show the pipeline works, not how it scales.
+
+## Roadmap
+
+- **v1.1:** Prefetch (Windows 10/11 compressed format), parsers for AI coding agent session logs, real-hive validation results.
+- Correlation rules (brute force bursts, log clear followed by logon).
+- Optional Sigma rule support for EVTX.
+
+## Data and attribution
+
+- `sample_data/` holds three unmodified captures from [EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES) by Samir Bousseaden, licensed **GPL-3.0** (see [sample_data/NOTICE.md](sample_data/NOTICE.md)). They contain no real organisational data.
+- Built on [python-evtx](https://github.com/williballenthin/python-evtx) and [python-registry](https://github.com/williballenthin/python-registry) by Willi Ballenthin (Apache-2.0), and [MITRE ATT&CK](https://attack.mitre.org/).
+
+## Security
+
+Analyse only evidence you are authorised to handle. See [SECURITY.md](SECURITY.md) for how to report a vulnerability and how the tool treats untrusted evidence.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+Code: [MIT](LICENSE). Sample data: GPL-3.0, see above.
 
 ## Author
 
-**Yug Mukesh Patel**
-
-- LinkedIn — <https://www.linkedin.com/in/yug-patel-b9727226b/>
-- GitHub — <https://github.com/yug3009p>
+**Yug Mukesh Patel**: [LinkedIn](https://www.linkedin.com/in/yugpatel9409/) · [GitHub](https://github.com/yug3009p)

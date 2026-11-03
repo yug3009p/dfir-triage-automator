@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t dfir-triage .
+      - name: Run the README quickstart against the samples
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/data" dfir-triage sample_data -o output
+          test -s output/report.html
+          test -s output/timeline.csv
+          grep -q "DT-001" output/findings.csv
+          grep -q "DT-002" output/findings.csv

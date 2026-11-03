@@ -1,5 +1,4 @@
 import os
-import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -7,9 +6,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parser import parse_evtx
-from summarizer import summarize_timeline
+from dfir_triage.parsers.evtx import parse_evtx
+from dfir_triage.summarizer import summarize_timeline
+from dfir_triage.timeline import to_dataframe
 
 HIGH_SIGNAL_IDS = {1102, 4625, 4672, 4688, 7045, 4720}
 
@@ -111,7 +110,7 @@ def _parse_cached(file_bytes: bytes, filename: str) -> pd.DataFrame:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".evtx") as tmp:
             tmp.write(file_bytes)
             tmp_path = tmp.name
-        return parse_evtx(tmp_path)
+        return to_dataframe(parse_evtx(tmp_path))
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:
@@ -209,8 +208,7 @@ if summary:
     else:
         st.markdown(summary)
         report_name = (
-            f"dfir_report_{Path(uploaded.name).stem}_"
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            f"dfir_report_{Path(uploaded.name).stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
         )
         report_body = (
             f"# DFIR Incident Report\n\n"

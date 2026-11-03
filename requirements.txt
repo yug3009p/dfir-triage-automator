@@ -1,5 +1,2 @@
-python-evtx
-pandas
-python-dotenv
-groq
-streamlit
+# Installs the package plus the Streamlit UI and LLM extras.
+-e .[ui,llm]
