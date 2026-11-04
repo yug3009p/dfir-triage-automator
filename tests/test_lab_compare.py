@@ -110,17 +110,33 @@ def test_rule_and_coverage_checks():
         def __init__(self, rid):
             self.id = rid
 
-    class FakeFinding:
-        def __init__(self, rid):
-            self.rule = FakeRule(rid)
+    class FakeEvent:
+        def __init__(self, ts, meaning):
+            self.timestamp = compare.parse_utc(ts)
+            self.time_meaning = meaning
 
-    rules = statuses(compare.check_rules(TRUTH, [FakeFinding("DT-005"), FakeFinding("DT-010")]))
-    assert rules == {
+    class FakeFinding:
+        def __init__(self, rid, ts="2026-11-03T20:05:00Z", meaning="EventRecorded"):
+            self.rule = FakeRule(rid)
+            self.event = FakeEvent(ts, meaning)
+
+    findings = [
+        FakeFinding("DT-005"),
+        FakeFinding("DT-010"),
+        # Fired only on Windows Setup events, before the lab activity: must not count.
+        FakeFinding("DT-006", ts="2026-11-03T10:00:00Z"),
+        # A file's own modified time says nothing about when the lab ran: must not count.
+        FakeFinding("DT-011", ts="2026-11-03T20:05:00Z", meaning="FileLastModified"),
+    ]
+    rules = compare.check_rules(TRUTH, findings)
+    assert statuses(rules) == {
         "rule fired: DT-005": "PASS",
         "rule fired: DT-006": "FAIL",
         "rule fired: DT-010": "PASS",
         "rule fired: DT-011": "FAIL",
     }
+    details = {c.name: c.detail for c in rules}
+    assert details["rule fired: DT-006"] == "only on events from before the lab activity"
 
     cov = statuses(
         compare.check_coverage(

@@ -40,3 +40,22 @@ def test_parse_amcache_inventory_entries():
 
 def test_parse_amcache_old_format_returns_empty():
     assert parse_amcache(FakeKey("ROOT", subkeys=[FakeKey("Root")]), "Amcache.hve") == []
+
+
+def test_parse_amcache_minimal_entries_use_key_name():
+    # Windows 11 26H2 (build 26300) lab hive: entries hold only ProgramId and FileId,
+    # and the subkey name carries the file name cut at 16 characters.
+    entry = FakeKey(
+        "aggregatorhost.e|2f15385328865347",
+        values={"ProgramId": "0000f519", "FileId": "0000" + SHA1},
+        timestamp=datetime(2026, 11, 4, 5, 27, 6),
+    )
+    root = tree(
+        "Root\\InventoryApplicationFile", FakeKey("InventoryApplicationFile", subkeys=[entry])
+    )
+
+    [event] = parse_amcache(root, "Amcache.hve")
+    assert event.path is None
+    assert event.details["sha1"] == SHA1
+    assert event.details["name_from_key"] == "aggregatorhost.e"
+    assert "no path recorded" in event.description

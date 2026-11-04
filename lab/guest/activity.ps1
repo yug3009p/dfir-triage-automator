@@ -51,10 +51,12 @@ powershell.exe -NoProfile -EncodedCommand $b64 | Out-Null
 Step "encoded_powershell" @("DT-004") @{ encoded = $b64 }
 
 # 7. Local account + admin group membership (DT-008, DT-009). Random password, account disabled.
+# Not "net user": for passwords over 14 characters it asks a Y/N question, which a script
+# answers "N", so the account was silently never created.
 $pw = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 20 | ForEach-Object { [char]$_ }) + "!a1"
-net user labuser $pw /add | Out-Null
-net user labuser /active:no | Out-Null
-net localgroup Administrators labuser /add | Out-Null
+New-LocalUser -Name labuser -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -Disabled -Description "dfir-triage lab test account" | Out-Null
+Add-LocalGroupMember -Group Administrators -Member labuser
+if (-not (Get-LocalGroupMember -Group Administrators -Member labuser -ErrorAction SilentlyContinue)) { throw "labuser was not added to Administrators" }
 Step "account_and_group" @("DT-008", "DT-009") @{ account = "labuser" }
 
 # 8. Clear a non-security log (System 104, DT-001).

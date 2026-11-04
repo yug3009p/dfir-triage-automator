@@ -59,6 +59,9 @@ this harmless script.
 
 ## Status
 
-The scripts are syntax-checked and the comparison logic is unit-tested, but the full loop has not
-yet been run against a real VM. The first run may need small fixes (for example, how VirtualBox
-reports image indexes in the ISO). Record results in `docs/validation-results.md`.
+Run end to end on 2026-11-04 against Windows 11 Pro 26H2 (build 26300) with VirtualBox 7.2.14:
+18 passed, 0 failed, 3 warnings. See [docs/validation-results.md](../docs/validation-results.md),
+including the bugs the first runs found.
+
+Keep the host awake while it runs: if Windows sleeps or VirtualBox saves the VM mid-run, the
+guest stops answering Guest Additions commands. Restart the VM (or restore `clean`) to recover.

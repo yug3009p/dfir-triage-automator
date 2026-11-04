@@ -52,6 +52,16 @@ def parse_amcache(amcache_root, artifact: str, host: str | None = None) -> list[
         sha1 = sha1_from_file_id(get_value(entry, "FileId"))
         if sha1:
             details["sha1"] = sha1
+        path = get_value(entry, "LowerCaseLongPath")
+        description = "Amcache inventoried executable"
+        if not path and "name" not in details:
+            # Seen on Windows 11 26H2 (build 26300): entries hold only ProgramId and FileId.
+            # The subkey name ("<file name, cut at 16 chars>|<hash>") is then the only hint
+            # to which file the SHA-1 belongs.
+            key_name = entry.name().split("|", 1)[0]
+            if key_name:
+                details["name_from_key"] = key_name
+                description = f"Amcache inventoried executable '{key_name}' (no path recorded)"
 
         events.append(
             TimelineEvent(
@@ -59,10 +69,10 @@ def parse_amcache(amcache_root, artifact: str, host: str | None = None) -> list[
                 time_meaning=TIME_KEY_LAST_WRITE,
                 source="amcache",
                 event_type="amcache_file",
-                description="Amcache inventoried executable",
+                description=description,
                 artifact=artifact,
                 host=host,
-                path=get_value(entry, "LowerCaseLongPath"),
+                path=path,
                 details=details,
             )
         )

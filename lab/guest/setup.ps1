@@ -2,6 +2,8 @@
 # Turns on the logging that dfir-triage's rules read.
 $ErrorActionPreference = "Stop"
 
+# The unattended --time-zone option is not applied by VirtualBox 7.2; set UTC here so guest local times match the timeline.
+tzutil /s "UTC"
 auditpol /set /subcategory:"Process Creation" /success:enable
 auditpol /set /subcategory:"Other Object Access Events" /success:enable    # 4698 scheduled tasks
 auditpol /set /subcategory:"User Account Management" /success:enable       # 4720

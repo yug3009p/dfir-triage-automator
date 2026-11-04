@@ -16,7 +16,7 @@ import csv
 import json
 import sys
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from dfir_triage.rules import Finding, run_rules
@@ -74,16 +74,27 @@ def check_coverage(artifacts: list[ArtifactResult]) -> list[Check]:
 
 
 def check_rules(truth: dict, findings: list[Finding]) -> list[Check]:
-    fired = {f.rule.id for f in findings}
+    # Only findings from the lab activity count: Windows Setup itself creates accounts and
+    # services, which would make a rule "pass" even if the lab step had silently failed.
+    # Findings whose time is a file's own modified time say nothing about when it ran, so skip them.
+    started = parse_utc(truth["started_utc"]) - timedelta(seconds=60)
+    fired = {
+        f.rule.id
+        for f in findings
+        if f.event.time_meaning != "FileLastModified" and f.event.timestamp >= started
+    }
+    before = {f.rule.id for f in findings} - fired
     expected = sorted({r for step in truth["steps"] for r in step.get("expected_rules", [])})
-    return [
-        Check(
-            f"rule fired: {rid}",
-            "PASS" if rid in fired else "FAIL",
-            "" if rid in fired else "expected from lab activity",
-        )
-        for rid in expected
-    ]
+    checks = []
+    for rid in expected:
+        if rid in fired:
+            checks.append(Check(f"rule fired: {rid}", "PASS", "on lab activity"))
+        elif rid in before:
+            detail = "only on events from before the lab activity"
+            checks.append(Check(f"rule fired: {rid}", "FAIL", detail))
+        else:
+            checks.append(Check(f"rule fired: {rid}", "FAIL", "expected from lab activity"))
+    return checks
 
 
 def check_parsers(truth: dict, events: list[TimelineEvent]) -> list[Check]:
