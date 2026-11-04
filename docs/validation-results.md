@@ -14,7 +14,7 @@ The hives and event logs are **not** committed: they contain the lab VM's identi
 | Date | 2026-11-04 |
 | Guest | Windows 11 Pro 26H2, build 26300.9457 (unactivated lab VM, built unattended) |
 | Hypervisor | VirtualBox 7.2.14 on a Windows 11 host |
-| dfir-triage | 0.2.0 plus the `feat/lab-automation` branch, Python 3.11.9 |
+| dfir-triage | 0.2.0 plus the lab-automation changes released in 1.0.0, Python 3.11.9 |
 | Logging | Process creation with command lines, account and group management, Other Object Access (scheduled tasks) |
 | Not installed | Sysmon (so Sysmon-based detections were not exercised) |
 

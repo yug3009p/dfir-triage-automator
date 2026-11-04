@@ -6,8 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Planned as 1.0.0 once the registry parsers are validated on real hives
-(see [docs/lab-validation.md](docs/lab-validation.md)).
+## [1.0.0] - 2026-11-04
+
+First release. The registry parsers are validated on a real Windows 11 26H2 VM: 18 passed,
+0 failed, 3 warnings (see [docs/validation-results.md](docs/validation-results.md)).
 
 ### Added
 - `lab/`: VirtualBox automation that builds a Windows 11 lab VM unattended, generates harmless
