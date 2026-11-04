@@ -14,19 +14,26 @@
     .\lab\build_vm.ps1 -IsoPath C:\ISOs\Win11_English_x64.iso
 #>
 param(
-    [Parameter(Mandatory = $true)] [string] $IsoPath,
+    [string] $IsoPath = "",
     [string] $VmName = "DFIR-Win11",
     [int] $ImageIndex = 0,            # 0 = pick "Windows 11 Pro" (or Enterprise) automatically
     [int] $MemoryMB = 4096,
     [int] $Cpus = 2,
     [int] $DiskGB = 64,
-    [string] $SysmonDir = ""          # optional folder containing Sysmon64.exe and sysmonconfig.xml
+    [string] $SysmonDir = "",         # optional folder containing Sysmon64.exe and sysmonconfig.xml
+    [switch] $Resume                  # continue an interrupted build of an existing VM
 )
 
 . "$PSScriptRoot\common.ps1"
 
+if ($Resume) {
+    # The host session ended mid-build and VirtualBox saved the VM: start it again and carry on.
+    if (-not (Test-VmExists $VmName)) { throw "No VM named $VmName to resume." }
+    if ((Get-VmState $VmName) -ne "running") { Invoke-VBox startvm $VmName --type headless | Out-Null }
+    Write-Host "Resumed $VmName. Waiting for Windows Setup to finish (up to 90 minutes)..."
+} else {
 if (-not (Test-Path $IsoPath)) { throw "ISO not found: $IsoPath" }
-if (Test-VmExists $VmName) { throw "A VM named $VmName already exists. Delete it in VirtualBox first, or pass -VmName." }
+if (Test-VmExists $VmName) { throw "A VM named $VmName already exists. Use -Resume to continue it, or delete it in VirtualBox." }
 
 # 1. Pick the Windows edition inside the ISO.
 if ($ImageIndex -eq 0) {
@@ -67,6 +74,7 @@ Invoke-VBox unattended install $VmName --iso=$IsoPath --image-index=$ImageIndex 
     --hostname="labws01.lab.local" --locale=en_US --country=US --time-zone=UTC `
     --install-additions --post-install-command=$postInstall --start-vm=headless | Out-Null
 Write-Host "Windows Setup is running headless. Waiting for the guest (up to 90 minutes)..."
+}
 Wait-GuestReady -VmName $VmName -TimeoutMinutes 90
 Restart-Guest -VmName $VmName   # apply the UAC change
 
