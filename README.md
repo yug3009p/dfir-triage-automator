@@ -146,7 +146,7 @@ The EVTX parser labels these IDs in plain English; everything else is kept and l
 | EVTX parser | 3 public attack captures from EVTX-ATTACK-SAMPLES + unit tests | Done |
 | Detection rules | Positive and negative case per rule; exact findings on the samples | Done |
 | HTML report | Rendering, truncation, failure display, and an XSS-escaping test | Done |
-| Shimcache, Amcache, registry parsers | Unit tests on fake registry keys and hand-built binary blobs | **Not yet validated on real hives.** Planned comparison against Eric Zimmerman's AmcacheParser, AppCompatCacheParser and RECmd: see [docs/lab-validation.md](docs/lab-validation.md) |
+| Shimcache, Amcache, registry parsers | Unit tests, plus an automated lab run on a real Windows 11 26H2 VM checked against ground truth recorded in the VM | Done for Shimcache, Amcache SHA-1, Run keys and Services: 18 passed, 0 failed, 3 warnings; Amcache SHA-1 matched 8 of 8 real files. UserAssist not yet confirmed on real data. See [docs/validation-results.md](docs/validation-results.md) |
 
 CI runs lint and the test suite on Ubuntu and Windows (Python 3.11 and 3.12) and builds the Docker image.
 
@@ -160,7 +160,7 @@ CI runs lint and the test suite on Ubuntu and Windows (Python 3.11 and 3.12) and
 
 ## Roadmap
 
-- **v1.1:** Prefetch (Windows 10/11 compressed format), parsers for AI coding agent session logs, real-hive validation results.
+- **v1.1:** Prefetch (Windows 10/11 compressed format), parsers for AI coding agent session logs, an allowlist to cut DT-006 noise from legitimate service installs, and a lab comparison against Eric Zimmerman's tools.
 - Correlation rules (brute force bursts, log clear followed by logon).
 - Optional Sigma rule support for EVTX.
 
