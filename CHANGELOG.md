@@ -10,6 +10,9 @@ Planned as 1.0.0 once the registry parsers are validated on real hives
 (see [docs/lab-validation.md](docs/lab-validation.md)).
 
 ### Added
+- `lab/`: VirtualBox automation that builds a Windows 11 lab VM unattended, generates harmless
+  known activity, collects the artifacts, and checks dfir-triage against ground truth recorded in
+  the VM (real SHA-1s and file times), optionally also against Eric Zimmerman's tools.
 - `dfir-triage` command: parses an evidence folder and writes `timeline.csv`, `findings.csv` and a
   self-contained `report.html`.
 - Parsers for Shimcache (Windows 10/11), Amcache (`InventoryApplicationFile`), Run/RunOnce keys,
@@ -21,6 +24,16 @@ Planned as 1.0.0 once the registry parsers are validated on real hives
 - Attribution for the GPL-3.0 sample data in `sample_data/NOTICE.md`.
 
 ### Fixed
+- Amcache entries from Windows 11 26H2 (build 26300) hold only `ProgramId` and `FileId`, so every
+  event had an empty path. The parser now records the file name from the subkey name
+  (`name_from_key`, cut at 16 characters by Windows) and says that no path was recorded. Found by
+  the first lab run.
+- Lab automation: guest commands received their own program path as the first argument
+  (VirtualBox 7.2 already supplies it), so the pre-collection reboot never happened and Shimcache
+  was empty; copies into existing guest folders failed; the test account was never created
+  (`net user` asks a Y/N question for long passwords); and a rule counted as "fired" even when it
+  only matched Windows Setup events. All fixed; the rule check now only counts findings from the
+  lab activity, and the reboot is verified by the guest's boot time.
 - `--summarize groq` failed because Groq retired `llama-3.3-70b-versatile`. The default is now
   `openai/gpt-oss-120b` (verified with a live run on the samples), `GROQ_MODEL` overrides it, and a
   retired model is now recognised from Groq's `model_not_found` error and explained.
